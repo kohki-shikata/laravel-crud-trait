@@ -121,24 +121,6 @@ trait CrudTrait
     }
 
     /**
-     * 編集
-     *
-     * @param  int $id モデルのID
-     * @param  Request $request リクエストインスタンス
-     * @return \Illuminate\Http\JsonResponse|\Illuminate\View\View レスポンス
-     */
-    public function edit($id, Request $request)
-    {
-        return $this->handleRequest(function () use ($id, $request) {
-            $model = $this->getModel();
-            $columns = $request->get('columns', ['*']);
-            $record = $this->selectColumns($model, $columns)->findOrFail($id);
-
-            return $this->response($record, $request);
-        });
-    }
-
-    /**
      * 更新
      *
      * @param  int $id 更新対象のモデルのID
