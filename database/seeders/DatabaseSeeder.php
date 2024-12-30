@@ -19,5 +19,12 @@ class DatabaseSeeder extends Seeder
             'name' => 'Test User',
             'email' => 'test@example.com',
         ]);
+
+
+        // PostSeederとCategorySeederを追加
+        $this->call([
+            CategorySeeder::class,
+            PostSeeder::class,
+        ]);
     }
 }
