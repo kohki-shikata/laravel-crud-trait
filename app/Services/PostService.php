@@ -4,38 +4,40 @@ namespace App\Services;
 use App\Models\Post;
 use App\Http\Requests\StorePostRequest;
 use App\Http\Requests\UpdatePostRequest;
+use App\Traits\CrudTrait; // CrudTraitをインポート
 
 class PostService
 {
-    protected $post;
+    use CrudTrait; // CrudTraitを使用
 
-    public function __construct(Post $post)
+    // コンストラクタで$modelClassを設定
+    public function __construct()
     {
-        $this->post = $post;
+        $this->modelClass = Post::class;
     }
 
     public function index()
     {
-        return $this->post->index();
+        return $this->indexCrud(); // CrudTraitのindexメソッドを呼び出し
     }
 
     public function store(StorePostRequest $request)
     {
-        return $this->post->store($request);
+        return $this->storeCrud($request); // CrudTraitのstoreメソッドを呼び出し
     }
 
-    public function show($id)
+    public function show($id, array $columns = ['*'])
     {
-        return $this->post->show($id);
+        return $this->showCrud($id, $columns); // CrudTraitのshowメソッドを呼び出し
     }
 
     public function update(UpdatePostRequest $request, $id)
     {
-        return $this->post->update($request, $id);
+        return $this->updateCrud($request->validated(), ['id' => $id]); // CrudTraitのupdateメソッドを呼び出し
     }
 
     public function destroy($id)
     {
-        return $this->post->destroy($id);
+        return $this->removeCrud($id); // CrudTraitのremoveメソッドを呼び出し
     }
 }

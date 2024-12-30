@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 
 trait CrudTrait
 {
-    use LockableTrait; // LockableTraitを使用
+    // use LockableTrait; // LockableTraitを使用
 
     /** @var string $modelClass */
     protected $modelClass;
@@ -23,15 +23,15 @@ trait CrudTrait
         if (empty($this->modelClass)) {
             throw new \Exception('Model class not defined. Please set $modelClass in the using class.');
         }
-    
+
         if (!class_exists($this->modelClass)) {
             throw new \Exception('Model class ' . $this->modelClass . ' does not exist.');
         }
-    
+
         return new $this->modelClass;
     }
-    
-    
+
+
 
     /**
      * JSONレスポンスを返すかどうかを判定
@@ -53,9 +53,12 @@ trait CrudTrait
      */
     protected function selectColumns($model, $columns)
     {
-        $validColumns = $model->getFillable();
+        $validColumns = $model->getFillable(); // fillableを取得
+        $guardedColumns = $model->getGuarded(); // guardedを取得
+
         foreach ($columns as $column) {
-            if (!in_array($column, $validColumns) && $column !== '*') {
+            // validColumnsに含まれているか、またはguardedに含まれていない場合は許可
+            if (in_array($column, $guardedColumns) && $column !== '*' && !in_array($column, $validColumns)) {
                 throw new \InvalidArgumentException("The column '$column' is not a valid column.");
             }
         }
@@ -67,7 +70,7 @@ trait CrudTrait
      *
      * @return \Illuminate\Http\JsonResponse|\Illuminate\View\View レスポンス
      */
-    protected function index()
+    public function indexCrud()
     {
         return $this->handleRequest(function () {
             $model = $this->getModel();
@@ -85,17 +88,19 @@ trait CrudTrait
      * 詳細表示
      *
      * @param  int $id モデルのID
-     * @param  Request $request リクエストインスタンス
+     * @param  array|null $columns 取得するカラムの配列（任意）
      * @return \Illuminate\Http\JsonResponse|\Illuminate\View\View レスポンス
      */
-    protected function show($id, Request $request)
+    public function showCrud($id, array $columns = ['*'])
     {
-        return $this->handleRequest(function () use ($id, $request) {
+        return $this->handleRequest(function () use ($id, $columns) {
             $model = $this->getModel();
-            $columns = $request->get('columns', ['*']);
-            $record = $this->selectColumns($model, $columns)->findOrFail($id);
+            $query = $this->selectColumns($model, $columns);
+            // デバッグ用にクエリを出力
+            \Log::info($query->toSql(), $query->getBindings());
+            $record = $query->where('id', $id)->firstOrFail();
 
-            return $this->response($record, $request);
+            return $this->response($record);
         });
     }
 
@@ -105,7 +110,7 @@ trait CrudTrait
      * @param  Request $request リクエストインスタンス
      * @return \Illuminate\Http\JsonResponse|\Illuminate\View\View レスポンス
      */
-    protected function store(Request $request)
+    public function storeCrud(Request $request)
     {
         return $this->handleRequest(function () use ($request) {
             $model = $this->getModel();
@@ -122,7 +127,7 @@ trait CrudTrait
      * @param  Request $request リクエストインスタンス
      * @return \Illuminate\Http\JsonResponse|\Illuminate\View\View レスポンス
      */
-    protected function edit($id, Request $request)
+    public function edit($id, Request $request)
     {
         return $this->handleRequest(function () use ($id, $request) {
             $model = $this->getModel();
@@ -136,18 +141,16 @@ trait CrudTrait
     /**
      * 更新
      *
-     * @param  Request $request リクエストインスタンス
-     * @param  Model $model 更新対象のモデル
+     * @param  int $id 更新対象のモデルのID
+     * @param  array $attributes 更新する属性
+     * @param  array $options オプション
      * @return Model 更新されたモデル
      */
-    protected function update(Request $request, Model $model)
+    public function updateCrud($id, array $attributes = [], array $options = [])
     {
-        return $this->handleRequest(function () use ($request, $model) {
-            if ($this->isLocked($model)) {
-                return ['message' => 'Resource is locked by another user.'];
-            }
-
-            $model->update($request->validated());
+        return $this->handleRequest(function () use ($id, $attributes, $options) {
+            $model = $this->getModel()->findOrFail($id); // IDでモデルを取得
+            $model->update($attributes, $options);
             return $model;
         });
     }
@@ -155,18 +158,18 @@ trait CrudTrait
     /**
      * 削除
      *
-     * @param  int $id モデルのID
+     * @param  int $id 削除対象のモデルのID
      * @return array 成功メッセージ
      */
-    protected function destroy($id)
+    public function removeCrud($id)
     {
         return $this->handleRequest(function () use ($id) {
             $model = $this->getModel();
             $record = $model::findOrFail($id);
 
-            if ($this->isLocked($record)) {
-                return ['message' => 'Resource is locked by another user.'];
-            }
+            // if ($this->isLocked($record)) {
+            //     return ['message' => 'Resource is locked by another user.'];
+            // }
 
             $record->delete();
             return ['message' => 'Resource deleted'];
@@ -178,7 +181,7 @@ trait CrudTrait
      * @param  Request $request
      * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\Response
      */
-    protected function bulkCreate(Request $request)
+    protected function bulkCreateCrud(Request $request)
     {
         return $this->handleRequest(function () use ($request) {
             $model = $this->getModel();
@@ -205,7 +208,7 @@ trait CrudTrait
      * @param  array $updates 更新するデータの配列
      * @return bool 更新成功の場合はtrue、それ以外はfalse
      */
-    public function bulkUpdate(array $updates): bool
+    public function bulkUpdateCrud(array $updates): bool
     {
         return $this->handleRequest(function () use ($updates) {
             foreach ($updates as $id => $data) {
@@ -221,7 +224,7 @@ trait CrudTrait
      * @param  array $ids 削除するモデルのID配列
      * @return bool 削除成功の場合はtrue、それ以外はfalse
      */
-    public function bulkDelete(array $ids): bool
+    public function bulkDeleteCrud(array $ids): bool
     {
         return $this->handleRequest(function () use ($ids) {
             $deletedCount = $this->getModel()::whereIn('id', $ids)->delete();
@@ -236,7 +239,7 @@ trait CrudTrait
      * @return \Illuminate\Database\Eloquent\Builder
      * @throws \InvalidArgumentException
      */
-    protected function search(Request $request)
+    protected function searchCrud(Request $request)
     {
         $model = $this->getModel();
         $query = $model::query();
